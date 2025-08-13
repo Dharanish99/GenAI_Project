@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import FilesBar from "../components/FilesBar.jsx";
+import FilesPanel from "../components/FilesPanel.jsx";
 import { useProject } from "../context/ProjectContext.jsx";
 
 export default function Classify() {
-  const { activeId, runFeature } = useProject();
+  const { activeId, runFeature, files } = useProject();
   const [classification, setClassification] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -46,9 +46,30 @@ export default function Classify() {
     }
   }
 
+  // Show message if no files are uploaded
+  if (files.length === 0) {
+    return (
+      <div className="card fade-in">
+        <div className="card-content text-center" style={{ padding: "4rem 2rem" }}>
+          <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>📄</div>
+          <h2>No Documents Uploaded</h2>
+          <p style={{ color: "var(--text-muted)", marginBottom: "2rem" }}>
+            Please upload legal documents first to start classifying documents.
+          </p>
+          <a href="/" className="btn btn-primary">
+            Go to Home & Upload Documents
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
-      <FilesBar />
+      {/* Show uploaded files */}
+      <div className="mb-6">
+        <FilesPanel />
+      </div>
       
       <div className="card fade-in">
         <div className="card-header">

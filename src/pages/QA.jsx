@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import FilesBar from "../components/FilesBar.jsx";
 import { useProject } from "../context/ProjectContext.jsx";
+import FilesPanel from "../components/FilesPanel.jsx";
 
 export default function QA() {
-  const { activeId, askChatbot } = useProject();
+  const { activeId, askChatbot, files } = useProject();
   const [question, setQuestion] = useState("");
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -81,10 +81,31 @@ export default function QA() {
     }
   }
 
+  // Show message if no files are uploaded
+  if (files.length === 0) {
+    return (
+      <div className="card fade-in">
+        <div className="card-content text-center" style={{ padding: "4rem 2rem" }}>
+          <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>📄</div>
+          <h2>No Documents Uploaded</h2>
+          <p style={{ color: "var(--text-muted)", marginBottom: "2rem" }}>
+            Please upload legal documents first to start asking questions.
+          </p>
+          <a href="/" className="btn btn-primary">
+            Go to Home & Upload Documents
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
-      <FilesBar />
-      
+      {/* Show uploaded files */}
+      <div className="mb-6">
+        <FilesPanel />
+      </div>
+
       <div className="card fade-in">
         <div className="card-header">
           <h2 style={{ margin: 0 }}>Q&A Chat</h2>
@@ -97,6 +118,11 @@ export default function QA() {
           {error && (
             <div className="badge badge-error mb-4" role="alert">
               {error}
+              {error === "Please select an active file first" && (
+                <div style={{ marginTop: "0.5rem", fontSize: "0.875rem" }}>
+                  Select a file from the list above to start asking questions.
+                </div>
+              )}
             </div>
           )}
           
@@ -229,8 +255,7 @@ export default function QA() {
                 </div>
               ))
             )}
-            </div>
-          ))}
+          </div>
         </div>
       </div>
     </>
