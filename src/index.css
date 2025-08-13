@@ -514,9 +514,38 @@ body {
 }
 
 .feature-card.disabled {
-  opacity: 0.5;
+  opacity: 0.6;
   cursor: not-allowed;
   transform: none !important;
+  position: relative;
+}
+
+.feature-card.disabled:hover {
+  transform: none !important;
+  box-shadow: var(--shadow);
+  border-color: var(--border);
+}
+
+.feature-card.disabled::after {
+  content: "Upload documents first";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--surface);
+  color: var(--text-muted);
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.feature-card.disabled:hover::after {
+  opacity: 1;
 }
 
 .feature-icon {

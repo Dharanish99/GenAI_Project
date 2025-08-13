@@ -24,8 +24,8 @@ export default function Home() {
         <FilesPanel />
       </section>
 
-      {/* Only show features after files are uploaded */}
-      {files.length > 0 && <FeaturesShowcase />}
+      {/* Always show core features */}
+      <FeaturesShowcase />
 
       {/* Feature Selection Modal */}
       <FeatureSelectionModal 

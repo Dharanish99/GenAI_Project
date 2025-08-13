@@ -1,8 +1,10 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { useProject } from "../context/ProjectContext.jsx";
 
 export default function FeaturesShowcase() {
   const navigate = useNavigate();
+  const { files } = useProject();
 
   const features = [
     {
@@ -36,21 +38,30 @@ export default function FeaturesShowcase() {
   ];
 
   const handleFeatureClick = (route) => {
+    if (files.length === 0) {
+      // If no files uploaded, show a message to upload first
+      alert("Please upload documents first to use this feature!");
+      return;
+    }
     navigate(route);
   };
 
   return (
     <section className="features-showcase slide-up">
       <div className="section-header">
-        <h2>Core Features Now Available</h2>
-        <p>With your documents uploaded, you can now use these powerful AI tools to analyze and understand your legal documents</p>
+        <h2>Core Features</h2>
+        {files.length === 0 ? (
+          <p>Upload legal documents to unlock these powerful AI tools for document analysis</p>
+        ) : (
+          <p>With your documents uploaded, you can now use these powerful AI tools to analyze and understand your legal documents</p>
+        )}
       </div>
       
       <div className="feature-grid">
         {features.map((feature) => (
           <div 
             key={feature.id}
-            className="feature-card stagger-item"
+            className={`feature-card stagger-item ${files.length === 0 ? 'disabled' : ''}`}
             onClick={() => handleFeatureClick(feature.route)}
             role="button"
             tabIndex={0}
@@ -70,6 +81,14 @@ export default function FeaturesShowcase() {
           </div>
         ))}
       </div>
+      
+      {files.length === 0 && (
+        <div className="text-center" style={{ marginTop: "2rem" }}>
+          <p style={{ color: "var(--text-muted)", marginBottom: "1rem" }}>
+            Upload your first document to get started
+          </p>
+        </div>
+      )}
     </section>
   );
 }
