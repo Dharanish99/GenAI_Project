@@ -1,37 +1,104 @@
 import React, { useState } from "react";
 import FilesBar from "../components/FilesBar.jsx";
-import { useFiles } from "../context/FilesContext.jsx";
-import { getFileBlob } from "../utils/db.js";
+import { useProject } from "../context/ProjectContext.jsx";
 
-export default function Simplify(){
-  const { activeId } = useFiles();
+export default function Simplify() {
+  const { activeId, runFeature } = useProject();
   const [loading, setLoading] = useState(false);
-  const [original, setOriginal] = useState("— Original clauses preview will appear here —");
-  const [simple, setSimple] = useState("");
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
 
-  async function runSimplify(){
-    if (!activeId) return;
+  async function runSimplify() {
+    if (!activeId) {
+      setError("Please select an active file first");
+      return;
+    }
+    
     setLoading(true);
-    const blob = await getFileBlob(activeId); // fetched but unused in mock
-    void blob;
-    await new Promise(r=>setTimeout(r, 900));
-    setOriginal(`1. The Parties agree to maintain confidentiality...\n2. This Agreement shall commence on...`);
-    setSimple(`1) Keep shared info private unless allowed.\n2) The agreement starts now and ends when either side quits.`);
-    setLoading(false);
+    setError("");
+    
+    try {
+      const response = await runFeature("clause_simplification");
+      setResult(response.result);
+    } catch (err) {
+      setError(err.message);
+      // Fallback to mock data for demo
+      setResult({
+        original: "1. The Parties agree to maintain confidentiality of all proprietary information disclosed during the term of this Agreement.\n2. This Agreement shall commence on the Effective Date and shall continue until terminated by either party with thirty (30) days written notice.",
+        simplified: "1. Both parties must keep shared private information secret during this agreement.\n2. This agreement starts now and ends when either party gives 30 days written notice to quit."
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <>
       <FilesBar />
-      <div className="card section reveal">
-        <div className="columns">
-          <textarea className="input" style={{minHeight:240}} readOnly value={original} aria-label="Original Clauses"/>
-          <textarea className="input" style={{minHeight:240}} readOnly value={simple} aria-label="Simplified Clauses"/>
+      
+      <div className="card fade-in">
+        <div className="card-header">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 style={{ margin: 0 }}>Clause Simplification</h2>
+              <p style={{ margin: "0.5rem 0 0 0", color: "var(--text-muted)" }}>
+                Convert complex legal language into plain English
+              </p>
+            </div>
+            <button 
+              className={`btn btn-primary ${loading ? 'loading' : ''}`}
+              onClick={runSimplify} 
+              disabled={!activeId || loading}
+            >
+              {loading ? (
+                <span className="loading">
+                  <span className="spinner"></span>
+                  Simplifying...
+                </span>
+              ) : (
+                "Simplify Clauses"
+              )}
+            </button>
+          </div>
         </div>
-        <div style={{marginTop:12}}>
-          <button className="btn" onClick={runSimplify} disabled={!activeId || loading}>
-            {loading ? "Simplifying…" : "Run Simplification"}
-          </button>
+        
+        <div className="card-content">
+          {error && (
+            <div className="badge badge-error mb-4" role="alert">
+              {error}
+            </div>
+          )}
+          
+          {result ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "2rem" }}>
+              <div>
+                <h3 style={{ marginBottom: "1rem", color: "var(--text-muted)" }}>Original</h3>
+                <textarea 
+                  className="textarea" 
+                  style={{ minHeight: "300px" }} 
+                  readOnly 
+                  value={result.original || "No original text available"} 
+                  aria-label="Original Clauses"
+                />
+              </div>
+              <div>
+                <h3 style={{ marginBottom: "1rem", color: "var(--primary)" }}>Simplified</h3>
+                <textarea 
+                  className="textarea" 
+                  style={{ minHeight: "300px", borderColor: "var(--primary)" }} 
+                  readOnly 
+                  value={result.simplified || "No simplified text available"} 
+                  aria-label="Simplified Clauses"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="text-center" style={{ padding: "4rem 2rem", color: "var(--text-muted)" }}>
+              <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>✨</div>
+              <h3>Ready to Simplify</h3>
+              <p>Click the "Simplify Clauses" button to convert complex legal language into plain English.</p>
+            </div>
+          )}
         </div>
       </div>
     </>

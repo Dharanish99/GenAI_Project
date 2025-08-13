@@ -1,7 +1,7 @@
 import React from "react";
 import { Routes, Route, NavLink } from "react-router-dom";
-import { FilesProvider } from "./context/FilesContext.jsx";
-import SideNav from "./components/SideNav.jsx";
+import { ProjectProvider } from "./context/ProjectContext.jsx";
+import Sidebar from "./components/Sidebar.jsx";
 import Home from "./pages/Home.jsx";
 import Simplify from "./pages/Simplify.jsx";
 import ExtractEntities from "./pages/ExtractEntities.jsx";
@@ -10,18 +10,18 @@ import QA from "./pages/QA.jsx";
 
 export default function App(){
   return (
-    <FilesProvider>
-      <div className="mobile-topbar">
-        <div className="mobile-row">
+    <ProjectProvider>
+      <div className="mobile-nav">
+        <div className="mobile-nav-content">
           <div className="brand" style={{gap:10}}>
-            <div className="brand-logo" aria-hidden />
+            <div className="brand-icon">CW</div>
             <strong>ClauseWise</strong>
           </div>
-          <NavLink to="/" className="hamburger" aria-label="Open Home">≡</NavLink>
+          <NavLink to="/" className="btn btn-ghost" aria-label="Home">≡</NavLink>
         </div>
       </div>
       <div className="app">
-        <SideNav />
+        <Sidebar />
         <main className="main">
           <div className="container">
             <Routes>
@@ -34,6 +34,6 @@ export default function App(){
           </div>
         </main>
       </div>
-    </FilesProvider>
+    </ProjectProvider>
   );
 }
