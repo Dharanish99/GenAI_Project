@@ -19,6 +19,7 @@ app = FastAPI(
 # Configure CORS settings for the frontend
 origins = [
     "http://localhost:3000",  # Your frontend's development URL
+    "http://localhost:5173",  # Vite frontend development URL
     "http://localhost:8000",  # Default FastAPI docs
 ]
 
