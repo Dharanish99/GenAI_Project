@@ -24,30 +24,14 @@ from chromadb.utils.embedding_functions import EmbeddingFunction as ChromaEmbedd
 
 from ..dependencies import db_connector
 from ..dependencies import llm_connector
+from ..dependencies.llm_connector import ChromaEmbeddingFunction
+
 
 # --- Configuration and Helpers ---
 UPLOAD_DIR = "./data/uploaded_documents"
 if not os.path.exists(UPLOAD_DIR):
     os.makedirs(UPLOAD_DIR)
 
-# Custom class to make LangChain's embedding function compatible with ChromaDB
-class ChromaEmbeddingFunction(ChromaEmbeddingFunctionBase):
-    def __init__(self, model_name: str = "BAAI/bge-large-en-v1.5", device: str = None):
-        if device is None:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self._langchain_embeddings = HuggingFaceEmbeddings(model_name=model_name, model_kwargs={'device': device})
-        self.model_name = model_name
-        self.device = device
-
-    def __call__(self, texts: List[str]) -> List[List[float]]:
-        return self._langchain_embeddings.embed_documents(texts)
-    
-    def embed_query(self, query: str) -> List[float]:
-        return self._langchain_embeddings.embed_query(query)
-    
-    def name(self):
-        return self.model_name
-    
 def create_project_id() -> str:
     """Generates a unique project ID using UUID4."""
     return str(uuid.uuid4())
