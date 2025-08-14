@@ -4,12 +4,11 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, status
 from typing import List
 from . import schemas
 from ..core import ingestion, features
-from ..dependencies import llm_connector, db_connector
+from ..dependencies import llm_connector
 
 router = APIRouter()
 
 # Global variable to store project IDs for this session
-# In a real-world app, this would be a database lookup
 session_projects = {}
 
 @router.post("/upload/", response_model=schemas.DocumentUploadResponse)
@@ -23,14 +22,14 @@ async def upload_documents(files: List[UploadFile] = File(...)):
             detail="Please upload between 1 and 10 documents."
         )
 
-    # Ingestion and processing logic (to be implemented in ingestion.py)
+    # Ingestion and processing logic (now fully implemented)
     project_id, processed_docs = await ingestion.process_project(files)
     session_projects[project_id] = processed_docs
 
     return schemas.DocumentUploadResponse(
         project_id=project_id,
         message="Documents uploaded and processed successfully.",
-        processed_documents=[doc.filename for doc in processed_docs]
+        processed_documents=processed_docs
     )
 
 @router.post("/features/", status_code=status.HTTP_200_OK)
@@ -51,12 +50,28 @@ async def run_feature(request: schemas.FeatureRequest):
     elif request.feature_name == "document_classification":
         result = await features.classify_document(request.project_id)
         return {"feature_name": "document_classification", "result": result}
-    # Add other features here...
+    elif request.feature_name == "risk_analysis":
+        result = await features.analyze_risks(request.project_id)
+        return {"feature_name": "risk_analysis", "result": result}
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid feature name."
         )
+
+@router.get("/diagram/{project_id}")
+async def get_relationship_diagram(project_id: str):
+    """
+    Gets the relationship diagram data for a project.
+    """
+    if project_id not in session_projects:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found."
+        )
+    
+    diagram_data = await features.get_relationship_diagram(project_id)
+    return diagram_data
 
 @router.post("/chatbot/", response_model=schemas.ChatQueryResponse)
 async def ask_chatbot(request: schemas.ChatQueryRequest):
@@ -71,10 +86,20 @@ async def ask_chatbot(request: schemas.ChatQueryRequest):
 
     # Get the RAG chain and run the query
     rag_chain = llm_connector.get_rag_chain()
-    answer = await llm_connector.run_query_with_rag(rag_chain, request.query)
+    if not rag_chain:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="RAG chain not initialized. Please check backend logs."
+        )
 
-    # In a real-world scenario, the RAG chain would also return source documents
+    # Correct way to invoke the RAG chain
+    response = rag_chain.invoke({"query": request.query})
+    
+    # The response from the RAG chain is a dictionary
+    answer = response.get('result', "Could not find an answer.")
+    # You would need to parse this for source documents
+    
     return schemas.ChatQueryResponse(
         answer=answer,
-        source_documents=["document1.pdf", "document2.docx"] # Placeholder
+        source_documents=["document1.pdf", "document2.docx"] # Placeholder for now
     )

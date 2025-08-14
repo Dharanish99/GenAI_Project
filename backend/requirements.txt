@@ -18,3 +18,7 @@ python-docx
 PyMuPDF
 Pillow
 pytesseract
+transformers
+torch
+langchain-groq
+docx2txt

@@ -1,101 +1,123 @@
-# backend/dependencies/llm_connector.py
-
-import os
 import logging
 from typing import Optional
-from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
+from langchain_community.llms import HuggingFacePipeline
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline, BitsAndBytesConfig
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_core.prompts import PromptTemplate
+from langchain_core.runnables import Runnable
+from langchain.chains import RetrievalQA
+from langchain_community.vectorstores import Chroma
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from ..core import ingestion
+from chromadb.api import ClientAPI
+from chromadb.utils.embedding_functions import EmbeddingFunction as ChromaEmbeddingFunctionBase
+import torch
 
-logger = logging.getLogger(__name__)
+# --- Pydantic model for loading LLM API keys from a .env file ---
+class LLMSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file='.env',
+        env_file_encoding='utf-8',
+        extra='ignore'
+    )
+    VECTOR_DB_PATH: str = "./data/vector_db"
+    
+llm_settings = LLMSettings()
 
-class LLMConnector:
-    def __init__(self):
-        self.llm: Optional[ChatOpenAI] = None
-        self.rag_chain = None
-        
-    def initialize_llm(self):
-        """Initialize the LLM connection"""
-        try:
-            # Get OpenAI API key from environment variables
-            api_key = os.getenv("OPENAI_API_KEY")
-            
-            if not api_key:
-                logger.warning("OPENAI_API_KEY not found. Using mock LLM for development.")
-                self.llm = None
-                return
-            
-            # Initialize OpenAI chat model
-            self.llm = ChatOpenAI(
-                model="gpt-3.5-turbo",
-                temperature=0.1,
-                api_key=api_key
-            )
-            
-            logger.info("Successfully initialized OpenAI LLM")
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize LLM: {e}")
-            self.llm = None
+# --- Global LLM and RAG chain variables ---
+local_llm: HuggingFacePipeline = None
+rag_chain: Optional[Runnable] = None
+vector_store: Optional[Chroma] = None
+
+# Custom class to make LangChain's embedding function compatible with ChromaDB
+class ChromaEmbeddingFunction(ChromaEmbeddingFunctionBase):
+    def _init_(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2", device: str = 'cuda'):
+        self._langchain_embeddings = HuggingFaceEmbeddings(model_name=model_name, model_kwargs={'device': device})
+        self.model_name = model_name
+        self.device = device
+
+    def _call_(self, texts: list[str]) -> list[list[float]]:
+        return self._langchain_embeddings.embed_documents(texts)
     
-    def get_rag_chain(self):
-        """Get or create RAG chain"""
-        if not self.llm:
-            logger.warning("LLM not initialized. Returning mock RAG chain.")
-            return self._create_mock_rag_chain()
-        
-        if not self.rag_chain:
-            self.rag_chain = self._create_rag_chain()
-        
-        return self.rag_chain
+    def embed_query(self, query: str) -> list[float]:
+        return self._langchain_embeddings.embed_query(query)
     
-    def _create_rag_chain(self):
-        """Create a RAG chain for document Q&A"""
-        template = """You are a helpful legal document analysis assistant. 
-        Answer the following question based on the provided context.
+    def name(self):
+        return self.model_name
+
+def get_llm_for_entity_extraction() -> Optional[HuggingFacePipeline]:
+    """Returns a new LLM instance for entity extraction tasks."""
+    if not local_llm:
+        initialize_llm() # Ensure LLM is initialized
+    return local_llm
+
+def initialize_llm():
+    """Initializes the local LLM and the RAG chain."""
+    global local_llm, rag_chain, vector_store
+    
+    try:
+        # 1. Initialize the local LLM using Hugging Face
+        model_id = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
         
-        Context: {context}
-        Question: {question}
-        
-        Answer:"""
-        
-        prompt = ChatPromptTemplate.from_template(template)
-        
-        chain = (
-            {"context": RunnablePassthrough(), "question": RunnablePassthrough()}
-            | prompt
-            | self.llm
-            | StrOutputParser()
+        nf4_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_compute_dtype=torch.bfloat16
+        )
+
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        model = AutoModelForCausalLM.from_pretrained(
+            model_id, 
+            device_map="auto",
+            torch_dtype=torch.float16,
+            quantization_config=nf4_config
         )
         
-        return chain
-    
-    def _create_mock_rag_chain(self):
-        """Create a mock RAG chain for development"""
-        def mock_rag(question):
-            return f"This is a mock response to: {question}. Please set up your OpenAI API key for real responses."
+        pipe = pipeline(
+            "text-generation", 
+            model=model, 
+            tokenizer=tokenizer, 
+            max_new_tokens=512, 
+            temperature=0.2
+        )
+        local_llm = HuggingFacePipeline(pipeline=pipe)
         
-        return mock_rag
-    
-    async def run_query_with_rag(self, rag_chain, query: str, context: str = ""):
-        """Run a query using the RAG chain"""
-        try:
-            if not context:
-                context = "No specific context provided. Using general legal knowledge."
-            
-            if hasattr(rag_chain, 'invoke'):
-                # Real RAG chain
-                result = await rag_chain.ainvoke({"context": context, "question": query})
-            else:
-                # Mock RAG chain
-                result = rag_chain(query)
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"Error running RAG query: {e}")
-            return f"Sorry, I encountered an error: {str(e)}"
+        logging.info(f"Local LLM '{model_id}' initialized successfully!")
 
-# Create a global instance
-llm_connector = LLMConnector()
+        # 2. Initialize the embedding model and vector store
+        embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2", model_kwargs={'device': 'cuda'})
+        vector_store = Chroma(
+            persist_directory=llm_settings.VECTOR_DB_PATH,
+            embedding_function=embeddings
+        )
+        
+        # 3. Define the RAG prompt template
+        rag_prompt = PromptTemplate(
+            template=(
+                "Context: {context}\n\n"
+                "Question: {question}\n\n"
+                "Helpful Answer:"
+            ),
+            input_variables=["context", "question"]
+        )
+        
+        # 4. Create the Retrieval-Augmented Generation (RAG) chain
+        rag_chain = RetrievalQA.from_chain_type(
+            llm=local_llm,
+            chain_type="stuff",
+            retriever=vector_store.as_retriever(),
+            chain_type_kwargs={"prompt": rag_prompt}
+        )
+        logging.info("RAG chain initialized.")
+
+    except Exception as e:
+        logging.error(f"Failed to initialize LLM or RAG chain: {e}")
+        local_llm = None
+        rag_chain = None
+
+def get_rag_chain() -> Optional[Runnable]:
+    """Returns the initialized RAG chain."""
+    if not rag_chain:
+        initialize_llm()
+    return rag_chain

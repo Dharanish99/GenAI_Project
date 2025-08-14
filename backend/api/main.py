@@ -36,6 +36,7 @@ async def startup_event():
     logging.info("Connecting to databases...")
     db_connector.connect_to_neo4j()
     db_connector.connect_to_chroma()
+    # Add this line to initialize the LLM and RAG chain
     llm_connector.initialize_llm()
 
 @app.on_event("shutdown")

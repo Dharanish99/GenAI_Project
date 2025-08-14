@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { initDB, saveFiles as dbSaveFiles, listFiles, removeFile as dbRemoveFile, clearAllFiles as dbClearAll, getActiveFileId, setActiveFileId } from "../utils/db.js";
+import { uploadDocuments, runFeature as apiRunFeature, askChatbot as apiAskChatbot } from "../utils/api.js";
 
 const ProjectContext = createContext(null);
 
@@ -124,12 +125,16 @@ export function ProjectProvider({ children }) {
         throw new Error('Invalid file list provided');
       }
 
+      // First, upload to backend
+      const backendResponse = await uploadDocuments(fileList);
+      const newProjectId = backendResponse.project_id;
+      setProjectId(newProjectId);
+
+      // Then save to local storage
       let saved;
       if (useFallback) {
-        // Use fallback storage
         saved = fallbackStorage.saveFiles(fileList);
       } else {
-        // Try IndexedDB first
         try {
           saved = await dbSaveFiles(fileList);
         } catch (dbError) {
@@ -168,11 +173,7 @@ export function ProjectProvider({ children }) {
         }
       }
 
-      // Generate a project ID for this session
-      const newProjectId = `project_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      setProjectId(newProjectId);
-
-      console.log('Files saved successfully, project ID:', newProjectId);
+      console.log('Files uploaded successfully, project ID:', newProjectId);
       
       // Store the uploaded files and show the feature selection modal
       setLastUploadedFiles(saved);
@@ -247,23 +248,13 @@ export function ProjectProvider({ children }) {
       throw new Error('No project available');
     }
 
-    // For now, return mock results since backend is not ready
-    const mockResults = {
-      'clause_simplification': {
-        simplified_clauses: [
-          "Termination requires 30 days written notice",
-          "Payment is due within 30 days of invoice",
-          "Confidentiality lasts 5 years after termination"
-        ]
-      },
-      'document_classification': {
-        document_type: "Contract Agreement",
-        confidence: 0.95,
-        key_topics: ["Payment Terms", "Termination", "Confidentiality"]
-      }
-    };
-
-    return mockResults[featureName] || { message: 'Feature not implemented yet' };
+    try {
+      const result = await apiRunFeature(projectId, featureName);
+      return result;
+    } catch (error) {
+      console.error('Feature execution error:', error);
+      throw error;
+    }
   };
 
   const askChatbot = async (query) => {
@@ -271,22 +262,13 @@ export function ProjectProvider({ children }) {
       throw new Error('No project available');
     }
 
-    // For now, return mock answers since backend is not ready
-    const mockAnswers = {
-      'termination': 'The termination clause requires 30 days written notice from either party.',
-      'payment': 'Payment terms specify net 30 days from invoice date.',
-      'confidential': 'Confidentiality obligations survive termination for 5 years.',
-      'default': `Based on the document analysis: ${query}`
-    };
-
-    const key = Object.keys(mockAnswers).find(k => 
-      query.toLowerCase().includes(k)
-    ) || 'default';
-
-    return {
-      answer: mockAnswers[key],
-      source_documents: ["document1.pdf", "document2.docx"]
-    };
+    try {
+      const result = await apiAskChatbot(projectId, query);
+      return result;
+    } catch (error) {
+      console.error('Chatbot error:', error);
+      throw error;
+    }
   };
 
   const value = useMemo(() => ({
