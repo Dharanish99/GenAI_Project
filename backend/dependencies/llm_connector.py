@@ -31,12 +31,12 @@ vector_store: Optional[Chroma] = None
 
 # Custom class to make LangChain's embedding function compatible with ChromaDB
 class ChromaEmbeddingFunction(ChromaEmbeddingFunctionBase):
-    def _init_(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2", device: str = 'cuda'):
+    def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2", device: str = 'cuda'):
         self._langchain_embeddings = HuggingFaceEmbeddings(model_name=model_name, model_kwargs={'device': device})
         self.model_name = model_name
         self.device = device
 
-    def _call_(self, texts: list[str]) -> list[list[float]]:
+    def __call__(self, texts: list[str]) -> list[list[float]]:
         return self._langchain_embeddings.embed_documents(texts)
     
     def embed_query(self, query: str) -> list[float]:
