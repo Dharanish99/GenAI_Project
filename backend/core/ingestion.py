@@ -6,6 +6,7 @@ import shutil
 import logging
 import json
 import re # <-- Import the regex library
+import torch
 from typing import List, Tuple, Dict, Any
 
 from fastapi import UploadFile
@@ -31,7 +32,9 @@ if not os.path.exists(UPLOAD_DIR):
 
 # Custom class to make LangChain's embedding function compatible with ChromaDB
 class ChromaEmbeddingFunction(ChromaEmbeddingFunctionBase):
-    def __init__(self, model_name: str = "BAAI/bge-large-en-v1.5", device: str = 'cuda'):
+    def __init__(self, model_name: str = "BAAI/bge-large-en-v1.5", device: str = None):
+        if device is None:
+            device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self._langchain_embeddings = HuggingFaceEmbeddings(model_name=model_name, model_kwargs={'device': device})
         self.model_name = model_name
         self.device = device
